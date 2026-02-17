@@ -1,5 +1,65 @@
 {
-  "android": {
-    "package": "com.anonymous.heymateapp"
+  "expo": {
+    "name": "HeyMate",
+    "slug": "heymate-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1e3a8a"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.heymate.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1e3a8a"
+      },
+      "package": "com.heymate.app",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.VIBRATE",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "HeyMate needs your location to find nearby service providers."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "HeyMate needs access to your photos for profile picture.",
+          "cameraPermission": "HeyMate needs access to your camera for profile picture."
+        }
+      ]
+    ],
+    "owner": "harinni",
+    "extra": {
+      "eas": {
+        "projectId": "963f84f5-743e-490d-9943-2e6b91c042a4"
+      }
+    }
   }
 }

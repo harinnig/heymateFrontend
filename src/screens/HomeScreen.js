@@ -100,17 +100,46 @@ export default function HomeScreen() {
   const initLocation = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') { setLocationLabel('Location unavailable'); return; }
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const [addr] = await Location.reverseGeocodeAsync({
-        latitude: loc.coords.latitude, longitude: loc.coords.longitude,
-      });
-      const label = addr
-        ? `${addr.city || addr.district || addr.subregion || ''}, ${addr.region || ''}`.replace(/^,|,$/g, '').trim()
-        : `${loc.coords.latitude.toFixed(3)}, ${loc.coords.longitude.toFixed(3)}`;
+      if (status !== 'granted') {
+        // Try one more time with a prompt
+        const { status: status2 } = await Location.requestForegroundPermissionsAsync();
+        if (status2 !== 'granted') {
+          setLocationLabel('Enable location in Settings');
+          return;
+        }
+      }
+
+      // Try high accuracy first, fall back to low accuracy
+      let loc;
+      try {
+        loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 5000,
+          distanceInterval: 0,
+        });
+      } catch {
+        loc = await Location.getLastKnownPositionAsync();
+      }
+
+      if (!loc) { setLocationLabel('Location unavailable'); return; }
+
       setUserLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
-      setLocationLabel(label || 'Location detected');
-    } catch (e) { setLocationLabel('Location unavailable'); }
+
+      try {
+        const [addr] = await Location.reverseGeocodeAsync({
+          latitude: loc.coords.latitude, longitude: loc.coords.longitude,
+        });
+        const label = addr
+          ? `${addr.city || addr.district || addr.subregion || ''}, ${addr.region || ''}`.replace(/^,\s*|,\s*$/g, '').trim()
+          : `${loc.coords.latitude.toFixed(3)}, ${loc.coords.longitude.toFixed(3)}`;
+        setLocationLabel(label || 'Location detected');
+      } catch {
+        setLocationLabel(`${loc.coords.latitude.toFixed(3)}, ${loc.coords.longitude.toFixed(3)}`);
+      }
+    } catch (e) {
+      console.log('Location error:', e.message);
+      setLocationLabel('Enable location permission');
+    }
   };
 
   // ── Stats ───────────────────────────────────────────────────────────────────

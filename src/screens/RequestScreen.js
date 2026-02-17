@@ -6,9 +6,11 @@ import {
 } from 'react-native';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { io } from 'socket.io-client';
+
+const SOCKET_URL = 'https://heymatebackend-production.up.railway.app';
 
 const API_URL = 'https://heymatebackend-production.up.railway.app/api';
 
@@ -33,12 +35,19 @@ const STATUS_INFO = {
 export default function RequestScreen() {
   const { user } = useAuth();
   const theme    = useTheme();
-  const navigation = useNavigation(); // ✅ ADD THIS LINE
 
   const [tab, setTab]                       = useState('my'); // 'my' | 'new'
   const [myRequests, setMyRequests]         = useState([]);
   const [loading, setLoading]               = useState(false);
   const [refreshing, setRefreshing]         = useState(false);
+
+  // ── Notification state ────────────────────────────────────────────────────
+  const socketRef                           = React.useRef(null);
+  const [notif, setNotif]                   = useState(null);
+  const [notifVisible, setNotifVisible]     = useState(false);
+  const [notifCount, setNotifCount]         = useState(0);
+  const [notifList, setNotifList]           = useState([]);
+  const [notifPanelOpen, setNotifPanelOpen] = useState(false);
 
   // New request form
   const [title, setTitle]                   = useState('');
@@ -56,21 +65,117 @@ export default function RequestScreen() {
   const [paymentModal, setPaymentModal]     = useState(false);
   const [payingReq, setPayingReq]           = useState(null);
 
-  useEffect(() => { fetchMyRequests(); detectLocation(); }, []);
+  useEffect(() => {
+    fetchMyRequests();
+    detectLocation();
+    setupSocket();
+    return () => { if (socketRef.current) socketRef.current.disconnect(); };
+  }, []);
 
-  const apiCall = async (method, url, data = null) => {
+  // ── Socket setup ──────────────────────────────────────────────────────────
+  const setupSocket = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
-      const res   = await fetch(`${API_URL}${url}`, {
-        method,
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        ...(data && { body: JSON.stringify(data) }),
+      if (!token) return;
+      socketRef.current = io(SOCKET_URL, {
+        auth: { token }, transports: ['websocket'],
       });
-      return res.json();
-    } catch (error) {
-      console.error('API Call Error:', error);
-      throw error;
-    }
+
+      socketRef.current.on('connect', () => {
+        if (user?._id) socketRef.current.emit('join-user-room', user._id);
+      });
+
+      // ── New offer received ──
+      socketRef.current.on('new-offer', (data) => {
+        const n = {
+          id:      Date.now(),
+          type:    'offer',
+          icon:    '💼',
+          title:   'New Offer Received!',
+          message: `Provider sent ₹${data.price} offer for "${data.requestTitle}"`,
+          time:    new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+          color:   '#f59e0b',
+          bg:      '#fffbeb',
+        };
+        showNotif(n);
+        fetchMyRequests();
+      });
+
+      // ── Offer accepted (status updates) ──
+      socketRef.current.on('request-status-update', (data) => {
+        let n = null;
+        if (data.status === 'active') {
+          n = {
+            id:      Date.now(),
+            type:    'payment',
+            icon:    '💰',
+            title:   'Payment Confirmed!',
+            message: data.message || 'Your booking is confirmed! Provider is on the way.',
+            time:    new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+            color:   '#10b981',
+            bg:      '#f0fdf4',
+          };
+        } else if (data.status === 'completed') {
+          n = {
+            id:      Date.now(),
+            type:    'completed',
+            icon:    '🎉',
+            title:   'Service Completed!',
+            message: data.message || 'Your service has been completed successfully!',
+            time:    new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+            color:   '#2563eb',
+            bg:      '#eff6ff',
+          };
+        } else if (data.status === 'payment_pending') {
+          n = {
+            id:      Date.now(),
+            type:    'accepted',
+            icon:    '✅',
+            title:   'Offer Accepted!',
+            message: 'You accepted an offer. Please complete payment to confirm.',
+            time:    new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+            color:   '#8b5cf6',
+            bg:      '#f5f3ff',
+          };
+        }
+        if (n) { showNotif(n); fetchMyRequests(); }
+      });
+
+      // ── Offer accepted by user (provider view) ──
+      socketRef.current.on('offer-accepted', (data) => {
+        const n = {
+          id:      Date.now(),
+          type:    'accepted',
+          icon:    '✅',
+          title:   'Offer Accepted!',
+          message: data.message || 'Your offer was accepted!',
+          time:    new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+          color:   '#10b981',
+          bg:      '#f0fdf4',
+        };
+        showNotif(n);
+      });
+
+    } catch (e) { console.log('Socket error:', e.message); }
+  };
+
+  const showNotif = (n) => {
+    setNotif(n);
+    setNotifVisible(true);
+    setNotifCount(prev => prev + 1);
+    setNotifList(prev => [n, ...prev].slice(0, 20));
+    // Auto hide after 4 seconds
+    setTimeout(() => setNotifVisible(false), 4000);
+  };
+
+  const apiCall = async (method, url, data = null) => {
+    const token = await AsyncStorage.getItem('token');
+    const res   = await fetch(`${API_URL}${url}`, {
+      method,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      ...(data && { body: JSON.stringify(data) }),
+    });
+    return res.json();
   };
 
   const detectLocation = async () => {
@@ -81,9 +186,7 @@ export default function RequestScreen() {
       const [addr] = await Location.reverseGeocodeAsync(loc.coords);
       setUserLoc(loc.coords);
       if (addr) setAddress(`${addr.street || ''} ${addr.district || ''} ${addr.city || ''} ${addr.region || ''}`.trim());
-    } catch (e) {
-      console.error('Location Error:', e);
-    }
+    } catch (e) {}
   };
 
   const fetchMyRequests = async () => {
@@ -91,9 +194,7 @@ export default function RequestScreen() {
       setRefreshing(true);
       const res = await apiCall('GET', '/requests/my-requests');
       setMyRequests(res.data || []);
-    } catch (e) {
-      console.error('Fetch Requests Error:', e);
-    } finally { setRefreshing(false); }
+    } catch (e) {} finally { setRefreshing(false); }
   };
 
   const handleSubmit = async () => {
@@ -128,15 +229,13 @@ export default function RequestScreen() {
   };
 
   const openRequest = async (req) => {
+    setSelectedReq(req);
+    setDetailModal(true);
+    setLoadingDetail(true);
     try {
-      setSelectedReq(req);
-      setDetailModal(true);
-      setLoadingDetail(true);
       const res = await apiCall('GET', `/requests/${req._id}`);
       if (res.success) setSelectedReq(res.data);
-    } catch (e) {
-      console.error('Open Request Error:', e);
-    } finally { setLoadingDetail(false); }
+    } catch (e) {} finally { setLoadingDetail(false); }
   };
 
   const handleAcceptOffer = async (offerId) => {
@@ -145,11 +244,17 @@ export default function RequestScreen() {
       if (res.success) {
         Alert.alert('✅ Offer Accepted!', 'Please complete payment to confirm the booking.');
         setDetailModal(false);
-        setPayingReq(res.data);
+        const reqData = res.data || selectedReq;
+        // Make sure finalAmount is set
+        if (!reqData.finalAmount) {
+          const offer = selectedReq.offers?.find(o => o._id === offerId);
+          if (offer) reqData.finalAmount = offer.price;
+        }
+        setPayingReq(reqData);
         setPaymentModal(true);
         fetchMyRequests();
       } else {
-        Alert.alert('Error', res.message);
+        Alert.alert('Error', res.message || 'Could not accept offer');
       }
     } catch (e) { Alert.alert('Error', e.message); }
   };
@@ -179,9 +284,7 @@ export default function RequestScreen() {
             await apiCall('PUT', `/requests/${reqId}/cancel`, { reason: 'Cancelled by user' });
             fetchMyRequests();
             setDetailModal(false);
-          } catch (e) {
-            console.error('Cancel Error:', e);
-          }
+          } catch (e) {}
         },
       },
     ]);
@@ -237,9 +340,22 @@ export default function RequestScreen() {
   return (
     <View style={[s.container, { backgroundColor: theme.background }]}>
 
-      {/* Tabs */}
+      {/* Header with notification bell */}
       <View style={[s.tabBar, { backgroundColor: theme.headerBackground }]}>
-        <Text style={s.tabTitle}>📋 Requests</Text>
+        <View style={s.headerRow}>
+          <Text style={s.tabTitle}>📋 Requests</Text>
+          <TouchableOpacity
+            style={s.bellBtn}
+            onPress={() => { setNotifPanelOpen(true); setNotifCount(0); }}
+          >
+            <Text style={{ fontSize: 26 }}>🔔</Text>
+            {notifCount > 0 && (
+              <View style={s.badge}>
+                <Text style={s.badgeTxt}>{notifCount > 9 ? '9+' : notifCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
         <View style={s.tabs}>
           <TouchableOpacity
             style={[s.tabBtn, tab === 'my' && s.tabActive]}
@@ -255,6 +371,22 @@ export default function RequestScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* ── Floating notification toast ── */}
+      {notifVisible && notif && (
+        <TouchableOpacity
+          style={[s.toast, { backgroundColor: notif.bg, borderLeftColor: notif.color }]}
+          onPress={() => setNotifVisible(false)}
+          activeOpacity={0.9}
+        >
+          <Text style={s.toastIcon}>{notif.icon}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.toastTitle, { color: notif.color }]}>{notif.title}</Text>
+            <Text style={s.toastMsg} numberOfLines={2}>{notif.message}</Text>
+          </View>
+          <Text style={s.toastClose}>✕</Text>
+        </TouchableOpacity>
+      )}
 
       {/* My Requests */}
       {tab === 'my' && (
@@ -371,9 +503,9 @@ export default function RequestScreen() {
                   return (
                     <View style={[s.statusCard, { backgroundColor: info.color + '15', borderColor: info.color }]}>
                       <Text style={[s.statusBig, { color: info.color }]}>{info.icon} {info.label}</Text>
-                      {selectedReq.statusHistory?.slice(-1)[0]?.message && (
+                      {(selectedReq.statusHistory?.length > 0) && (
                         <Text style={[s.statusMsg, { color: info.color }]}>
-                          {selectedReq.statusHistory.slice(-1)[0].message}
+                          {selectedReq.statusHistory[selectedReq.statusHistory.length - 1]?.message || ''}
                         </Text>
                       )}
                     </View>
@@ -465,6 +597,63 @@ export default function RequestScreen() {
                 )}
                 <View style={{ height: 20 }} />
               </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Notification Panel Modal ── */}
+      <Modal
+        visible={notifPanelOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setNotifPanelOpen(false)}
+      >
+        <View style={s.overlay}>
+          <View style={[s.modalBox, { backgroundColor: theme.modalBackground, maxHeight: '85%' }]}>
+            <View style={s.modalHead}>
+              <Text style={[s.modalTitle, { color: theme.textPrimary }]}>🔔 Notifications</Text>
+              <TouchableOpacity onPress={() => setNotifPanelOpen(false)}>
+                <Text style={{ fontSize: 26, color: theme.textSecondary }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {notifList.length === 0 ? (
+              <View style={{ alignItems: 'center', padding: 40 }}>
+                <Text style={{ fontSize: 50 }}>🔕</Text>
+                <Text style={[{ color: theme.textPrimary, fontSize: 16, fontWeight: 'bold', marginTop: 12 }]}>
+                  No notifications yet
+                </Text>
+                <Text style={[{ color: theme.textSecondary, fontSize: 13, marginTop: 6 }]}>
+                  Offers and status updates will appear here
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={notifList}
+                keyExtractor={item => item.id?.toString()}
+                showsVerticalScrollIndicator={false}
+                renderItem={({ item }) => (
+                  <View style={[s.notifItem, { backgroundColor: item.bg, borderLeftColor: item.color }]}>
+                    <Text style={s.notifItemIcon}>{item.icon}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.notifItemTitle, { color: item.color }]}>{item.title}</Text>
+                      <Text style={[s.notifItemMsg, { color: theme.textSecondary }]}>{item.message}</Text>
+                      <Text style={s.notifItemTime}>{item.time}</Text>
+                    </View>
+                  </View>
+                )}
+                contentContainerStyle={{ paddingBottom: 20 }}
+              />
+            )}
+
+            {notifList.length > 0 && (
+              <TouchableOpacity
+                style={{ alignItems: 'center', padding: 14, borderTopWidth: 1, borderTopColor: '#e2e8f0' }}
+                onPress={() => { setNotifList([]); setNotifCount(0); }}
+              >
+                <Text style={{ color: '#ef4444', fontWeight: '600' }}>Clear All</Text>
+              </TouchableOpacity>
             )}
           </View>
         </View>
@@ -580,6 +769,20 @@ const s = StyleSheet.create({
   acceptBtnTxt:   { color: '#fff', fontWeight: 'bold', fontSize: 14 },
   cancelBtn:      { backgroundColor: '#fee2e2', borderRadius: 14, padding: 14, alignItems: 'center', marginTop: 8 },
   cancelBtnTxt:   { color: '#ef4444', fontWeight: 'bold', fontSize: 14 },
+  headerRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  bellBtn:        { position: 'relative', padding: 4 },
+  badge:          { position: 'absolute', top: -2, right: -2, backgroundColor: '#ef4444', borderRadius: 10, minWidth: 20, height: 20, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 },
+  badgeTxt:       { color: '#fff', fontSize: 11, fontWeight: 'bold' },
+  toast:          { position: 'absolute', top: 130, left: 12, right: 12, flexDirection: 'row', alignItems: 'center', borderRadius: 14, padding: 14, borderLeftWidth: 4, elevation: 10, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, zIndex: 999 },
+  toastIcon:      { fontSize: 28, marginRight: 12 },
+  toastTitle:     { fontSize: 15, fontWeight: 'bold', marginBottom: 2 },
+  toastMsg:       { fontSize: 13, color: '#374151', lineHeight: 18 },
+  toastClose:     { fontSize: 18, color: '#9ca3af', marginLeft: 8 },
+  notifItem:      { flexDirection: 'row', alignItems: 'flex-start', padding: 14, borderLeftWidth: 4, marginBottom: 8, borderRadius: 12 },
+  notifItemIcon:  { fontSize: 26, marginRight: 12, marginTop: 2 },
+  notifItemTitle: { fontSize: 14, fontWeight: 'bold', marginBottom: 2 },
+  notifItemMsg:   { fontSize: 13, lineHeight: 18, marginBottom: 4 },
+  notifItemTime:  { fontSize: 11, color: '#9ca3af' },
   payCard:        { borderRadius: 14, padding: 20, alignItems: 'center', marginBottom: 16 },
   payTitle:       { fontSize: 16, fontWeight: 'bold', color: '#1f2937', marginBottom: 8 },
   payAmount:      { fontSize: 36, fontWeight: 'bold', color: '#10b981', marginBottom: 4 },
