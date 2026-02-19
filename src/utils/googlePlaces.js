@@ -1,6 +1,7 @@
-// frontend/src/utils/googlePlaces.js (NEW API version)
+// frontend/src/utils/googlePlaces.js
 
-const GOOGLE_API_KEY = 'AIzaSyARowVxUYFFpNsj9-SC8U6I5xX4-aYqYTk';
+// Use environment variable
+const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY || '';
 
 const CATEGORY_TO_KEYWORD = {
   'Plumbing':       'plumber',
@@ -17,15 +18,10 @@ const CATEGORY_TO_KEYWORD = {
   'Food Delivery':  'restaurant',
 };
 
-/**
- * Fetch nearby shops using NEW Places API
- */
 export const fetchNearbyShops = async (latitude, longitude, category, radius = 10000) => {
   try {
     const keyword = CATEGORY_TO_KEYWORD[category] || category;
-
-    // Use Text Search (New) - works without legacy API
-    const url = `https://places.googleapis.com/v1/places:searchText`;
+    const url = 'https://places.googleapis.com/v1/places:searchText';
     
     const response = await fetch(url, {
       method: 'POST',
@@ -47,32 +43,39 @@ export const fetchNearbyShops = async (latitude, longitude, category, radius = 1
     });
 
     const data = await response.json();
+    console.log('Google Places Response:', data);
 
     if (data.places && data.places.length > 0) {
       return {
         success: true,
-        shops: data.places.map(place => formatPlaceV2(place, latitude, longitude)),
+        shops: data.places.map(place => ({
+          id: place.id,
+          name: place.displayName?.text || 'Unknown',
+          address: place.formattedAddress || '',
+          rating: place.rating || null,
+          totalRatings: place.userRatingCount || 0,
+          isOpen: place.currentOpeningHours?.openNow,
+          photoUrl: place.photos?.[0]?.name 
+            ? `https://places.googleapis.com/v1/${place.photos[0].name}/media?maxWidthPx=400&key=${GOOGLE_API_KEY}`
+            : null,
+          latitude: place.location?.latitude,
+          longitude: place.location?.longitude,
+          distance: calculateDistance(latitude, longitude, place.location?.latitude, place.location?.longitude),
+          placeId: place.id,
+          mapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.displayName?.text || '')}`,
+          directionsUrl: place.location?.latitude && place.location?.longitude
+            ? `https://www.google.com/maps/dir/?api=1&destination=${place.location.latitude},${place.location.longitude}`
+            : null,
+        })),
       };
-    } else {
-      return { success: true, shops: [] }; // No results is not an error
     }
+    return { success: true, shops: [] };
   } catch (error) {
     console.error('fetchNearbyShops error:', error);
     return { success: false, shops: [], error: error.message };
   }
 };
 
-/**
- * Get place photo URL (NEW API)
- */
-export const getPlacePhotoUrl = (photoName, maxWidth = 400) => {
-  if (!photoName) return null;
-  return `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=${maxWidth}&key=${GOOGLE_API_KEY}`;
-};
-
-/**
- * Calculate distance (Haversine formula)
- */
 export const calculateDistance = (lat1, lon1, lat2, lon2) => {
   const R = 6371;
   const dLat = deg2rad(lat2 - lat1);
@@ -86,31 +89,3 @@ export const calculateDistance = (lat1, lon1, lat2, lon2) => {
 };
 
 const deg2rad = (deg) => deg * (Math.PI / 180);
-
-/**
- * Format NEW API place result
- */
-const formatPlaceV2 = (place, userLat, userLon) => {
-  const lat = place.location?.latitude;
-  const lon = place.location?.longitude;
-  const distance = lat && lon ? calculateDistance(userLat, userLon, lat, lon) : null;
-  const photoName = place.photos?.[0]?.name;
-
-  return {
-    id: place.id,
-    name: place.displayName?.text || 'Unknown',
-    address: place.formattedAddress || '',
-    rating: place.rating || null,
-    totalRatings: place.userRatingCount || 0,
-    isOpen: place.currentOpeningHours?.openNow,
-    photoUrl: photoName ? getPlacePhotoUrl(photoName) : null,
-    latitude: lat,
-    longitude: lon,
-    distance: distance,
-    placeId: place.id,
-    mapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.displayName?.text || '')}&query_place_id=${place.id}`,
-    directionsUrl: lat && lon
-      ? `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`
-      : null,
-  };
-};

@@ -1,47 +1,25 @@
-# Dependencies
 node_modules/
-
-# Expo
 .expo/
 .expo-shared/
 dist/
-web-build/
-
-# Native
+npm-debug.*
 *.jks
 *.p8
 *.p12
 *.key
 *.mobileprovision
 *.orig.*
+web-build/
 
-# Metro
-.metro-health-check*
-
-# Debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-
-# macOS
-.DS_Store
-
-# Environment
+# Environment variables
 .env
 .env.local
+.env*.local
 
 # IDE
 .vscode/
 .idea/
 
-# Android
-android/app/build/
-android/app/release/
-android/.gradle/
-android/local.properties
-
-# iOS
-ios/Pods/
-ios/build/
-*.xcworkspace
-!default.xcworkspace
+# OS
+.DS_Store
+Thumbs.db
