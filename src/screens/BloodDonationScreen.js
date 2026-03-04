@@ -575,7 +575,7 @@ const BloodDonationScreen = ({ navigation }) => {
             • 1 donation can save 3 lives{'\n'}
             • Eligible to donate every 3 months{'\n'}
             • Takes only 10-15 minutes{'\n'}
-            • Age 18-65, weight > 50kg{'\n'}
+            • Age 18-65, weight {'>'} 50kg{'\n'}
             • Free health check-up provided{'\n'}
             • Helps reduce iron overload
           </Text>
