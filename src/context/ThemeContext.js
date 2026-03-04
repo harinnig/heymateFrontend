@@ -1,63 +1,41 @@
-import React, { createContext, useState, useContext } from 'react';
+// src/context/ThemeContext.js - Theme Context
 
-const ThemeContext = createContext();
+import React, { createContext, useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+export const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [theme, setTheme] = useState('light');
 
-  const toggleTheme = () => setIsDarkMode(prev => !prev);
+  useEffect(() => {
+    loadTheme();
+  }, []);
 
-  const theme = {
-    isDarkMode,
-    toggleTheme,
+  const loadTheme = async () => {
+    try {
+      const savedTheme = await AsyncStorage.getItem('appTheme');
+      if (savedTheme) {
+        setTheme(savedTheme);
+      }
+    } catch (error) {
+      console.error('Error loading theme:', error);
+    }
+  };
 
-    // Backgrounds
-    background:       isDarkMode ? '#111827' : '#f9fafb',
-    cardBackground:   isDarkMode ? '#1f2937' : '#ffffff',
-    headerBackground: isDarkMode ? '#1e3a8a' : '#2563eb',
-    modalBackground:  isDarkMode ? '#1f2937' : '#ffffff',
-    searchBackground: isDarkMode ? '#1f2937' : '#ffffff',
-    categoryCard:     isDarkMode ? '#1f2937' : '#ffffff',
-
-    // Text
-    textPrimary:   isDarkMode ? '#f9fafb' : '#1f2937',
-    textSecondary: isDarkMode ? '#9ca3af' : '#6b7280',
-    sectionTitle:  isDarkMode ? '#f3f4f6' : '#1f2937',
-    placeholder:   isDarkMode ? '#6b7280' : '#9ca3af',
-
-    // Inputs
-    inputBackground: isDarkMode ? '#374151' : '#f9fafb',
-    inputBorder:     isDarkMode ? '#4b5563' : '#e5e7eb',
-    inputText:       isDarkMode ? '#f9fafb' : '#1f2937',
-
-    // Borders & Dividers
-    border:    isDarkMode ? '#374151' : '#e5e7eb',
-    divider:   isDarkMode ? '#374151' : '#f3f4f6',
-
-    // Tab Bar
-    tabBar:       isDarkMode ? '#1f2937' : '#ffffff',
-    tabBarBorder: isDarkMode ? '#374151' : '#e5e7eb',
-    activeTab:    isDarkMode ? '#60a5fa' : '#2563eb',
-    inactiveTab:  isDarkMode ? '#6b7280' : '#9ca3af',
-
-    // Misc
-    badgeBackground: isDarkMode ? '#374151' : '#f3f4f6',
-    success: isDarkMode ? '#34d399' : '#10b981',
-    danger:  isDarkMode ? '#f87171' : '#ef4444',
-    warning: isDarkMode ? '#fbbf24' : '#f59e0b',
+  const toggleTheme = async () => {
+    try {
+      const newTheme = theme === 'light' ? 'dark' : 'light';
+      await AsyncStorage.setItem('appTheme', newTheme);
+      setTheme(newTheme);
+    } catch (error) {
+      console.error('Error saving theme:', error);
+    }
   };
 
   return (
-    <ThemeContext.Provider value={theme}>
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
       {children}
     </ThemeContext.Provider>
   );
-};
-
-export const useTheme = () => {
-  const context = useContext(ThemeContext);
-  if (!context) {
-    throw new Error('useTheme must be used within ThemeProvider');
-  }
-  return context;
 };

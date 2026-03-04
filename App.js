@@ -1,126 +1,110 @@
-// frontend/App.js
+// App.js - Main Entry Point for HeyMate Application
+
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text } from 'react-native';
+import { createStackNavigator } from '@react-navigation/stack';
+import { StatusBar } from 'expo-status-bar';
 
-import { AuthProvider, useAuth } from './src/context/AuthContext';
-import { ThemeProvider, useTheme } from './src/context/ThemeContext';
+// Import Screens
+import HomeScreen from './src/screens/HomeScreen';
+import LoginScreen from './src/screens/LoginScreen';
+import RegisterScreen from './src/screens/RegisterScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
+import RequestScreen from './src/screens/RequestScreen';
+import ProviderDashboard from './src/screens/ProviderDashboard';
+import NearbySettingsScreen from './src/screens/NearbySettingsScreen';
+import WomanSafetyScreen from './src/screens/WomanSafetyScreen';
+import BloodDonationScreen from './src/screens/BloodDonationScreen';
 
-import LoginScreen     from './src/screens/LoginScreen';
-import RegisterScreen  from './src/screens/RegisterScreen';
-import HomeScreen      from './src/screens/HomeScreen';
-import RequestScreen   from './src/screens/RequestScreen';
-import ProviderScreen  from './src/screens/ProviderScreen';
-import ProfileScreen   from './src/screens/ProfileScreen';
+// Import Context Providers
+import { AuthProvider } from './src/context/AuthContext';
+import { ThemeProvider } from './src/context/ThemeContext';
 
-const Stack = createNativeStackNavigator();
-const Tab   = createBottomTabNavigator();
+const Stack = createStackNavigator();
 
-// ── User Tabs (Customer) ──────────────────────────────────────────────────────
-function UserTabs() {
-  const theme = useTheme();
-  return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: theme.isDarkMode ? '#1e293b' : '#ffffff',
-          borderTopColor:  theme.isDarkMode ? '#334155' : '#e2e8f0',
-          paddingBottom: 6, paddingTop: 6, height: 62,
-        },
-        tabBarActiveTintColor:   '#2563eb',
-        tabBarInactiveTintColor: theme.isDarkMode ? '#94a3b8' : '#9ca3af',
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
-      }}
-    >
-      <Tab.Screen
-        name="Home"
-        component={HomeScreen}
-        options={{ tabBarIcon: ({ color }) => <Text style={{ fontSize: 22, color }}>🏠</Text>, tabBarLabel: 'Home' }}
-      />
-      <Tab.Screen
-        name="Requests"
-        component={RequestScreen}
-        options={{ tabBarIcon: ({ color }) => <Text style={{ fontSize: 22, color }}>📋</Text>, tabBarLabel: 'Requests' }}
-      />
-      <Tab.Screen
-        name="Profile"
-        component={ProfileScreen}
-        options={{ tabBarIcon: ({ color }) => <Text style={{ fontSize: 22, color }}>👤</Text>, tabBarLabel: 'Profile' }}
-      />
-    </Tab.Navigator>
-  );
-}
-
-// ── Provider Tabs ─────────────────────────────────────────────────────────────
-function ProviderTabs() {
-  const theme = useTheme();
-  return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: theme.isDarkMode ? '#1e293b' : '#ffffff',
-          borderTopColor:  theme.isDarkMode ? '#334155' : '#e2e8f0',
-          paddingBottom: 6, paddingTop: 6, height: 62,
-        },
-        tabBarActiveTintColor:   '#2563eb',
-        tabBarInactiveTintColor: theme.isDarkMode ? '#94a3b8' : '#9ca3af',
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
-      }}
-    >
-      <Tab.Screen
-        name="Dashboard"
-        component={ProviderScreen}
-        options={{ tabBarIcon: ({ color }) => <Text style={{ fontSize: 22, color }}>👷</Text>, tabBarLabel: 'Dashboard' }}
-      />
-      <Tab.Screen
-        name="Home"
-        component={HomeScreen}
-        options={{ tabBarIcon: ({ color }) => <Text style={{ fontSize: 22, color }}>🏠</Text>, tabBarLabel: 'Home' }}
-      />
-      <Tab.Screen
-        name="Profile"
-        component={ProfileScreen}
-        options={{ tabBarIcon: ({ color }) => <Text style={{ fontSize: 22, color }}>👤</Text>, tabBarLabel: 'Profile' }}
-      />
-    </Tab.Navigator>
-  );
-}
-
-// ── Root Navigator ────────────────────────────────────────────────────────────
-function RootNavigator() {
-  const { isAuthenticated, user, loading } = useAuth();
-
-  if (loading) return null;
-
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {!isAuthenticated ? (
-        <>
-          <Stack.Screen name="Login"    component={LoginScreen} />
-          <Stack.Screen name="Register" component={RegisterScreen} />
-        </>
-      ) : user?.role === 'provider' ? (
-        <Stack.Screen name="ProviderMain" component={ProviderTabs} />
-      ) : (
-        <Stack.Screen name="UserMain" component={UserTabs} />
-      )}
-    </Stack.Navigator>
-  );
-}
-
-// ── App Root ──────────────────────────────────────────────────────────────────
 export default function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
+    <AuthProvider>
+      <ThemeProvider>
         <NavigationContainer>
-          <RootNavigator />
+          <StatusBar style="auto" />
+          <Stack.Navigator 
+            initialRouteName="Login"
+            screenOptions={{
+              headerStyle: {
+                backgroundColor: '#007AFF',
+              },
+              headerTintColor: '#fff',
+              headerTitleStyle: {
+                fontWeight: 'bold',
+              },
+            }}
+          >
+            {/* Authentication Screens */}
+            <Stack.Screen 
+              name="Login" 
+              component={LoginScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen 
+              name="Register" 
+              component={RegisterScreen}
+              options={{ headerShown: false }}
+            />
+            
+            {/* Main App Screens */}
+            <Stack.Screen 
+              name="Home" 
+              component={HomeScreen}
+              options={{ title: 'HeyMate - Services' }}
+            />
+            <Stack.Screen 
+              name="Profile" 
+              component={ProfileScreen}
+              options={{ title: 'My Profile' }}
+            />
+            <Stack.Screen 
+              name="Requests" 
+              component={RequestScreen}
+              options={{ title: 'My Requests' }}
+            />
+            <Stack.Screen 
+              name="ProviderDashboard" 
+              component={ProviderDashboard}
+              options={{ title: 'Provider Dashboard' }}
+            />
+            
+            {/* Settings & Features */}
+            <Stack.Screen 
+              name="NearbySettings" 
+              component={NearbySettingsScreen}
+              options={{ title: 'Nearby Settings' }}
+            />
+            
+            {/* Safety Features */}
+            <Stack.Screen 
+              name="WomanSafety" 
+              component={WomanSafetyScreen}
+              options={{ 
+                title: 'Woman Safety',
+                headerStyle: { backgroundColor: '#FF3B30' },
+                headerTintColor: '#fff',
+                headerTitleStyle: { fontWeight: 'bold' }
+              }}
+            />
+            <Stack.Screen 
+              name="BloodDonation" 
+              component={BloodDonationScreen}
+              options={{ 
+                title: 'Blood Donation',
+                headerStyle: { backgroundColor: '#FF3B30' },
+                headerTintColor: '#fff',
+                headerTitleStyle: { fontWeight: 'bold' }
+              }}
+            />
+          </Stack.Navigator>
         </NavigationContainer>
-      </AuthProvider>
-    </ThemeProvider>
+      </ThemeProvider>
+    </AuthProvider>
   );
 }
